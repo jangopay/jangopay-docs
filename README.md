@@ -103,7 +103,7 @@ curl --fail-with-body \
 
 The list business response includes `success`, `invoices`, `total` and `totalPages`. Authentication responses use `code`, `msg` and `data`; handle the two response shapes separately.
 
-Pending, confirming, failed and expired records should not trigger fulfillment. Process server-side completion notifications, query invoices/transactions when needed, and match the local order and amounts before delivery. A browser return is not proof of payment.
+Pending, confirming, partially paid, failed and expired records should not trigger fulfillment. A `payment.completed` notification reports a settled transaction, not necessarily a paid invoice. Verify `invoice.status` is `paid` and the corresponding `transaction.status` is `settled` through the merchant API, then match the local order and amounts before fulfilling once. A browser return is not proof of payment.
 
 ```mermaid
 sequenceDiagram
@@ -122,9 +122,9 @@ sequenceDiagram
 
 ## Webhooks
 
-Payment completion uses `payment.completed`; payout completion notifications are also available. Notifications use **RSA-OAEP-SHA256 + AES-256-GCM**, not an EPay MD5 signature.
+`payment.completed` reports one settled payment transaction; payout completion notifications are also available. Notifications use **RSA-OAEP-SHA256 + AES-256-GCM**, not an EPay MD5 signature.
 
-Configure the public key in Console and retain its paired private key on your server. Decrypt the notification and reconcile the mapped order, asset, transaction and amounts. There is no independent `event_id` in the current payload: deduplicate by event type, invoice/payout ID and transaction hash, and ensure each business order is fulfilled once. Return any 2xx only after successful processing and persistence. The official guide documents up to five retries on failure.
+Configure the public key in Console and retain its paired private key on your server. Decrypt the notification and reconcile the mapped order, asset, transaction and amounts. There is no independent `event_id` in the current payload: deduplicate `payment.completed` by event type + `txn_id`, and `payout.completed` by event type + `payout_id`. Ensure each business order is fulfilled once. Return any 2xx only after successful processing and persistence. The official guide documents up to five retries on failure.
 
 [Webhook guide](docs/en/webhooks.md) · [中文](docs/zh-CN/webhooks.md)
 
