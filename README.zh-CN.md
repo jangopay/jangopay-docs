@@ -103,7 +103,7 @@ curl --fail-with-body \
 
 列表业务响应包含 `success`、`invoices`、`total` 和 `totalPages`；认证接口使用 `code`、`msg`、`data`，不要混用响应结构。
 
-等待付款、确认中及失败/过期均不应触发发货。服务端处理完成通知，必要时查询收款单与交易，核对本地订单和金额后再交付。浏览器跳转不是付款凭证。
+等待付款、确认中、部分付款及失败/过期均不应触发发货。`payment.completed` 表示一笔交易已结算，不代表收款单一定已付清。通过商户 API 确认 `invoice.status` 为 `paid`、对应 `transaction.status` 为 `settled`，再核对本地订单与金额并幂等交付。浏览器跳转不是付款凭证。
 
 ```mermaid
 sequenceDiagram
@@ -122,11 +122,11 @@ sequenceDiagram
 
 ## Webhook
 
-收款完成事件为 `payment.completed`，另有转出完成通知。当前通知使用 **RSA-OAEP-SHA256 + AES-256-GCM**，不是易支付的 MD5 签名格式。
+`payment.completed` 表示一笔付款交易已结算，另有转出完成通知。当前通知使用 **RSA-OAEP-SHA256 + AES-256-GCM**，不是易支付的 MD5 签名格式。
 
 - 在 Console 配置回调公钥，配对私钥仅保存于商户服务器。
 - 解密通知后核对订单映射、支付资产、交易和金额。
-- 当前负载没有独立 `event_id`；按事件类型、收款单/转出标识和交易哈希去重，同时保证订单业务只交付一次。
+- 当前负载没有独立 `event_id`；`payment.completed` 按事件类型 + `txn_id` 去重，`payout.completed` 按事件类型 + `payout_id` 去重，同时保证同一业务订单只交付一次。
 - 解密、持久化及业务处理成功后返回任意 2xx；失败会重试，官方文档说明最多 5 次。
 
 [中文 Webhook 指南](docs/zh-CN/webhooks.md) · [English](docs/en/webhooks.md)
