@@ -25,16 +25,16 @@ X-JangoPay-Key-Encryption: RSA-OAEP-SHA256
 }
 ```
 
-RSA 私钥以 OAEP-SHA256 解密 encrypted_key，得到 32 字节 AES 密钥；解码 nonce 和 ciphertext，再以 AES-256-GCM 解密。使用正式 SDK/接入实现确认密文认证标签的处理方式，不能把此格式当作 MD5 或 HMAC 签名。
+RSA 私钥以 OAEP-SHA256 解密 encrypted_key，得到 32 字节 AES 密钥；对 nonce 和 ciphertext 进行 Base64 解码。解码后 ciphertext 的最后 16 字节是 GCM 认证标签，AAD 为空；对其余密文使用 AES-256-GCM 解密。此格式不是 MD5 或 HMAC 签名。
 
-加密解密成功不应单独作为付款确认依据。结合商户订单映射及服务端收款单/交易查询，核对通知中的 invoice_id、order_id、txn_id、tx_hash、支付资产与金额后执行业务。
+解密成功不应单独作为付款确认依据。`payment.completed` 到达时，收款单仍可能是 `partial_paid`。结合商户订单映射及服务端收款单/交易查询，核对 invoice_id、order_id、txn_id、tx_hash、支付资产与金额；仅在 `invoice.status` 为 `paid` 且对应 `transaction.status` 为 `settled` 后履约。
 
 ## 处理顺序
 
 1. 检查事件类型与加密算法，只处理当前业务需要的事件。
 2. 解密并验证完整性，校验业务字段。
 3. 查找本地订单与收款单映射，核对 JangoPay 服务端记录。
-4. 持久化事件，以事件类型 + invoice_id/payout_id + tx_hash 建立唯一约束。
+4. 持久化事件：`payment.completed` 以事件类型 + `txn_id` 建立唯一约束，`payout.completed` 以事件类型 + `payout_id` 建立唯一约束。
 5. 通过事务或持久化任务确保同一订单只交付一次。混合付款场景可能有多个交易标识，事件去重不能替代订单去重。
 6. 成功处理后返回 2xx；失败返回非 2xx，保留可恢复的处理状态。
 
@@ -53,4 +53,4 @@ RSA 私钥以 OAEP-SHA256 解密 encrypted_key，得到 32 字节 AES 密钥；�
 
 在独立测试配置中验证重复通知、非法密文、未知订单、记录不一致与暂时失败恢复。记录脱敏错误及订单标识，不记录密钥或完整敏感负载。
 
-完整格式、事件示例与密钥生成命令见[官方 Webhook 指南](https://doc.jangopay.org/integration-guide?section=production)。核对日期：2026-10-12。
+完整格式、事件示例与密钥生成命令见[官方 Webhook 指南](https://doc.jangopay.org/integration-guide?section=production)。核对日期：2026-11-13。
